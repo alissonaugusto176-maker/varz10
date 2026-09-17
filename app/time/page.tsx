@@ -1,0 +1,5 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {supabase} from '../../lib/supabase';
+export default function TeamHome(){const router=useRouter();const [name,setName]=useState('Carregando...');useEffect(()=>{(async()=>{const {data:{user}}=await supabase.auth.getUser();if(!user){router.replace('/login');return}const {data:p}=await supabase.from('profiles').select('role,team_id,teams(name)').eq('user_id',user.id).maybeSingle();if(!p||p.role!=='team_owner'){router.replace('/login');return}const t=p.teams as unknown as {name?:string}|null;setName(t?.name||'Seu time')})()},[router]);return <main className="formPage"><section className="teamForm"><p className="eyebrow">VARZ10 • ÁREA DO TIME</p><h1>{name}</h1><p className="muted">Acesso do responsável funcionando.</p><div className="firstAccess"><b>Bem-vindo ao VARZ10</b><p>Seu acesso foi criado com sucesso. Agora vamos conectar Elenco, Partidas, Súmula e Estatísticas a este painel.</p></div><button className="primary" onClick={async()=>{await supabase.auth.signOut();router.replace('/login')}}>Sair</button></section></main>}
