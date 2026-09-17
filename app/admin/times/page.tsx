@@ -1,67 +1,14 @@
 'use client';
-
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
-
-type Team = {
-  id: string;
-  name: string;
-  login: string;
-  responsible_name: string;
-  responsible_phone: string | null;
-  status: 'active' | 'blocked';
-  team_modalities?: { modality: 'campo' | 'futsal'; enabled: boolean }[];
-};
-
-export default function Times() {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
-
-  useEffect(() => {
-    async function loadTeams() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id,name,login,responsible_name,responsible_phone,status,team_modalities(modality,enabled)')
-        .order('created_at', { ascending: false });
-
-      if (error) setError(error.message);
-      else setTeams((data ?? []) as Team[]);
-      setLoading(false);
-    }
-    loadTeams();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return teams.filter(team => {
-      const matchesStatus = status === 'all' || team.status === status;
-      const haystack = `${team.name} ${team.login} ${team.responsible_name} ${team.responsible_phone ?? ''}`.toLowerCase();
-      return matchesStatus && (!q || haystack.includes(q));
-    });
-  }, [teams, search, status]);
-
-  return <main className="formPage">
-    <div className="formTop"><Link href="/admin">← Painel ADM</Link><div className="brand"><span className="shield">V10</span><strong>VARZ10</strong></div></div>
-    <section className="teamForm wide">
-      <div className="listHead"><div><p className="eyebrow">SUPER ADM</p><h1>Times e acessos</h1><p className="muted">Cadastre, edite, bloqueie e gerencie os acessos.</p></div><Link className="primary" href="/admin/times/novo">+ Cadastrar time</Link></div>
-      <div className="toolbar"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar time, responsável, celular ou login"/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Todos</option><option value="active">Ativos</option><option value="blocked">Bloqueados</option></select></div>
-
-      {loading && <div className="emptyState"><h3>Carregando times...</h3></div>}
-      {!loading && error && <div className="firstAccess"><p>{error}</p></div>}
-      {!loading && !error && filtered.length === 0 && <div className="emptyState"><h3>{teams.length ? 'Nenhum time encontrado' : 'Nenhum time cadastrado ainda'}</h3><p>{teams.length ? 'Tente outro termo ou filtro.' : 'Seu primeiro time aparecerá aqui depois do cadastro.'}</p></div>}
-      {!loading && !error && filtered.length > 0 && <div className="teamList">{filtered.map(team => {
-        const mods = (team.team_modalities ?? []).filter(m=>m.enabled).map(m=>m.modality === 'futsal' ? 'Futsal / Quadra' : 'Futebol de Campo');
-        return <article className="teamRow" key={team.id}>
-          <div className="teamRowTop"><div><h3>{team.name}</h3><span className={`statusPill ${team.status}`}>{team.status === 'active' ? 'Ativo' : 'Bloqueado'}</span></div><strong className="teamLogin">@{team.login}</strong></div>
-          <div className="teamMeta"><div><small>Responsável</small><b>{team.responsible_name}</b></div><div><small>Celular / WhatsApp</small><b>{team.responsible_phone || 'Não informado'}</b></div><div><small>Modalidade</small><b>{mods.join(' • ') || 'Nenhuma liberada'}</b></div></div>
-          <div className="teamActions"><button disabled>Editar</button><button disabled>Redefinir senha</button><button disabled>{team.status === 'active' ? 'Bloquear' : 'Reativar'}</button></div>
-        </article>;
-      })}</div>}
-    </section>
-  </main>;
+import {useEffect,useMemo,useState} from 'react';
+import {supabase} from '../../../lib/supabase';
+type Team={id:string;name:string;login:string;responsible_name:string;responsible_phone:string|null;status:'active'|'blocked';team_modalities?:{modality:'campo'|'futsal';enabled:boolean}[]};
+export default function Times(){
+ const [teams,setTeams]=useState<Team[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[search,setSearch]=useState(''),[status,setStatus]=useState('all'),[generating,setGenerating]=useState(''),[access,setAccess]=useState<{team:string;login:string;code:string;expires_at:string}|null>(null);
+ useEffect(()=>{(async()=>{setLoading(true);const {data,error}=await supabase.from('teams').select('id,name,login,responsible_name,responsible_phone,status,team_modalities(modality,enabled)').order('created_at',{ascending:false});if(error)setError(error.message);else setTeams((data??[]) as Team[]);setLoading(false)})()},[]);
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();return teams.filter(t=>(status==='all'||t.status===status)&&(!q||`${t.name} ${t.login} ${t.responsible_name} ${t.responsible_phone??''}`.toLowerCase().includes(q)))},[teams,search,status]);
+ async function generate(team:Team){setError('');setGenerating(team.id);setAccess(null);try{const {data:{session}}=await supabase.auth.getSession();if(!session)throw new Error('Sua sessão expirou. Entre novamente.');const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;const res=await fetch(`${url}/functions/v1/varz10-first-access`,{method:'POST',headers:{'Content-Type':'application/json','apikey':key!,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'generate',team_id:team.id})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Não foi possível gerar o acesso.');setAccess({team:team.name,login:data.login,code:data.code,expires_at:data.expires_at})}catch(e){setError(e instanceof Error?e.message:'Não foi possível gerar o acesso.')}finally{setGenerating('')}}
+ return <main className="formPage"><div className="formTop"><Link href="/admin">← Painel ADM</Link><div className="brand"><span className="shield">V10</span><strong>VARZ10</strong></div></div><section className="teamForm wide"><div className="listHead"><div><p className="eyebrow">SUPER ADM</p><h1>Times e acessos</h1><p className="muted">Cadastre, edite, bloqueie e gerencie os acessos.</p></div><Link className="primary" href="/admin/times/novo">+ Cadastrar time</Link></div><div className="toolbar"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar time, responsável, celular ou login"/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Todos</option><option value="active">Ativos</option><option value="blocked">Bloqueados</option></select></div>
+ {access&&<div className="firstAccess"><b>Primeiro acesso — {access.team}</b><p>Login: <strong>{access.login}</strong><br/>Código temporário: <strong>{access.code}</strong><br/>Válido por 24 horas. Envie apenas ao responsável do time. Um novo código invalida o anterior.</p></div>}{!loading&&error&&<div className="firstAccess"><p>{error}</p></div>}
+ {loading?<div className="emptyState"><h3>Carregando times...</h3></div>:filtered.length===0?<div className="emptyState"><h3>{teams.length?'Nenhum time encontrado':'Nenhum time cadastrado ainda'}</h3></div>:<div className="teamList">{filtered.map(team=>{const mods=(team.team_modalities??[]).filter(m=>m.enabled).map(m=>m.modality==='futsal'?'Futsal / Quadra':'Futebol de Campo');return <article className="teamRow" key={team.id}><div className="teamRowTop"><div><h3>{team.name}</h3><span className={`statusPill ${team.status}`}>{team.status==='active'?'Ativo':'Bloqueado'}</span></div><strong className="teamLogin">@{team.login}</strong></div><div className="teamMeta"><div><small>Responsável</small><b>{team.responsible_name}</b></div><div><small>Celular / WhatsApp</small><b>{team.responsible_phone||'Não informado'}</b></div><div><small>Modalidade</small><b>{mods.join(' • ')||'Nenhuma liberada'}</b></div></div><div className="teamActions"><button disabled>Editar</button><button onClick={()=>generate(team)} disabled={!!generating||team.status!=='active'}>{generating===team.id?'Gerando...':'Gerar primeiro acesso'}</button><button disabled>{team.status==='active'?'Bloquear':'Reativar'}</button></div></article>})}</div>}</section></main>
 }
