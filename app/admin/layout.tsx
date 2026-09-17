@@ -13,21 +13,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     let active = true;
 
     async function checkAccess() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-        return;
-      }
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role,active')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (error || !profile?.active || profile.role !== 'super_admin') {
-        await supabase.auth.signOut();
-        router.replace('/login');
         return;
       }
 
